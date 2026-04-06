@@ -43,6 +43,51 @@ The current testbench suite covers common pipeline hazard/control scenarios:
 - Load-to-branch and branch/control transfer interactions.
 - Control hazard scenarios (branch/branch, control-control, jump-jump mixes).
 
+## Verilog Design Hierarchy
+
+This repository uses a layered RISC-V pipeline design. The major module hierarchy and data/control flow are:
+
+- `basys3_top.v` (FPGA board wrapper)
+  - `clock_divider.v` (generates slow CPU clock for implementation)
+  - `microprocessor.v` (CPU + memories integration)
+    - `instruc_mem_top.v` (instruction memory wrapper)
+      - `instruction_memory.v` (instruction ROM/data fetch)
+    - `core.v` (pipeline datapath and control)
+      - `fetch.v` (fetch stage, PC/address generation)
+      - `fetch_pipe.v` (fetch/decode stage pipeline register)
+      - `decode.v` (instruction decode, register read, immediate selection, control signals)
+      - `decode_pipe.v` (decode/execute stage pipeline register)
+      - `execute_forwarding.v` (forwarding logic for RAW hazard resolution)
+      - `branch.v` (branch decision logic)
+      - `execute.v` (ALU and next-address computation)
+        - `alu.v` (arithmetic/logic operations)
+        - `adder.v` (branch/JALR target address computation)
+      - `execute_pipe.v` (execute/memory stage pipeline register)
+      - `memory_stage.v` (memory access stage, request logic)
+      - `memory_pipe.v` (memory/writeback stage pipeline register)
+      - `Write_back.v` (write-back stage)
+        - `mux2_4.v` (write-back data selection)
+    - `data_memory_top.v` (data memory wrapper)
+      - `data_memory.v` (data RAM and store/load behavior)
+
+Supporting modules used by the datapath/control logic:
+
+- `control_unit.v`
+  - `type_decoder.v` (instruction type decode)
+  - `control_decoder.v` (control signal generation)
+- `register_file.v` (register read/write stage)
+- `immediate_gen.v` (sign-extended immediate values)
+- `type_decoder.v` (opcode type classification)
+- `mux1_2.v`, `mux2_4.v`, `mux3_8.v` (multiplexer support)
+- `wrapper_memory.v` (memory interface wrapper)
+
+### Connection Notes
+
+- `basys3_top` connects board clock/reset to `microprocessor` and presents `x1`–`x4` debug nibbles to LEDs.
+- `microprocessor` connects instruction fetch output (`pc_address`, `instruction`) to `core`, and data memory handshake (`data_mem_request`, `data_mem_valid`) to `data_memory_top`.
+- `core` implements a 5-stage pipeline: Fetch → Decode → Execute → Memory → Write-back.
+- `execute_forwarding` provides forwarded operands into `execute` and branch evaluation to resolve hazards without stalling when possible.
+- `instruc_mem_top` and `data_memory_top` add `valid` request/response handshake around the raw memory blocks.
 
 ## Tool Chain To Convert C To RISC-V Assembly Code (Windows)
 
